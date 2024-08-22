@@ -270,6 +270,5 @@ int app_uart_rs485_startup(void)
     return rst;
 }
 INIT_APP_EXPORT(app_uart_rs485_startup);
-#endif
 
 ```
