@@ -78,12 +78,6 @@ static void rs485_gpio_init(void)
     rs485_set_rx();
 }
 
-static rt_err_t rx_ind(rt_device_t dev, rt_size_t size)
-{
-    rt_sem_release(uf->rx_sem);
-    return RT_EOK;
-}
-
 static rt_err_t uart_rs485_init(void)
 {
     rt_device_t serial_device = rt_device_find(UART_NAME);
@@ -103,8 +97,7 @@ static rt_err_t uart_rs485_init(void)
     rs485_gpio_init();
     struct uart_framework_cfg cfg =
             { .uart_name = UART_NAME, .max_frame_size = RECV_BUF_SIZE, .frame_interval_ms =
-            FRAME_TIMEOUT_MS, .send_interval_ms = SEND_INTERVAL_MS, .rs485_txd = rs485_set_tx, .rs485_rxd = rs485_set_rx,
-                    .rx_ind = rx_ind };
+            FRAME_TIMEOUT_MS, .send_interval_ms = SEND_INTERVAL_MS, .rs485_txd = rs485_set_tx, .rs485_rxd = rs485_set_rx };
     //如果不是485，则配置rs485_txd和rs485_rxd为RT_NULL
 
     uf = uart_framework_create(&cfg);
@@ -193,12 +186,6 @@ static void rs485_gpio_init(void)
     rs485_set_rx();
 }
 
-static rt_err_t rx_ind(rt_device_t dev, rt_size_t size)
-{
-    rt_sem_release(uf->rx_sem);
-    return RT_EOK;
-}
-
 static rt_err_t uart_rs485_init(void)
 {
     rt_device_t serial_device = rt_device_find(UART_NAME);
@@ -217,8 +204,7 @@ static rt_err_t uart_rs485_init(void)
 
     rs485_gpio_init();
     struct uart_framework_cfg cfg = { .uart_name = UART_NAME, .max_frame_size = RECV_BUF_SIZE, .frame_interval_ms =
-    FRAME_TIMEOUT_MS, .send_interval_ms = SEND_INTERVAL_MS, .rs485_txd = rs485_set_tx, .rs485_rxd = rs485_set_rx,
-            .rx_ind = rx_ind };
+    FRAME_TIMEOUT_MS, .send_interval_ms = SEND_INTERVAL_MS, .rs485_txd = rs485_set_tx, .rs485_rxd = rs485_set_rx };
     //如果不是485，则配置rs485_txd和rs485_rxd为RT_NULL
 
     uf = uart_framework_create(&cfg);

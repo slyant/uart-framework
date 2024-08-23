@@ -15,6 +15,13 @@ enum work_model
   WORK_TAKE_RELEASE
 };
 
+static rt_err_t rx_ind(rt_device_t dev, rt_size_t size)
+{
+  uart_framework_t uf = (uart_framework_t)dev->user_data;
+  rt_sem_release(uf->rx_sem);
+  return RT_EOK;
+}
+
 /**
  * @brief 创建 UART 框架
  *
@@ -83,7 +90,8 @@ uart_framework_t uart_framework_create(struct uart_framework_cfg *cfg)
 #endif
   RT_ASSERT(open_result == RT_EOK);
 
-  rt_device_set_rx_indicate(uf->uart_device, uf->cfg.rx_ind);
+  uf->uart_device->user_data = uf;
+  rt_device_set_rx_indicate(uf->uart_device, rx_ind);
 
   return uf;
 }
