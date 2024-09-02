@@ -97,8 +97,8 @@ static rt_err_t uart_rs485_init(void)
     rs485_gpio_init();
     struct uart_framework_cfg cfg =
             { .uart_name = UART_NAME, .max_frame_size = RECV_BUF_SIZE, .frame_interval_ms =
-            FRAME_TIMEOUT_MS, .send_interval_ms = SEND_INTERVAL_MS, .rs485_txd = rs485_set_tx, .rs485_rxd = rs485_set_rx };
-    //如果不是485，则配置rs485_txd和rs485_rxd为RT_NULL
+            FRAME_TIMEOUT_MS, .send_interval_ms = SEND_INTERVAL_MS, .rs485_txd = rs485_set_tx, .rs485_rxd = rs485_set_rx, .rx_ind = RT_NULL };
+    //如果不是485，则配置rs485_txd和rs485_rxd为RT_NULL;rx_ind如果没有特殊情况，配置为RT_NULL，默认为框架提供中断处理程序
 
     uf = uart_framework_create(&cfg);
     if (uf == RT_NULL)
