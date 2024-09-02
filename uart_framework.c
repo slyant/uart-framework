@@ -91,7 +91,14 @@ uart_framework_t uart_framework_create(struct uart_framework_cfg *cfg)
   RT_ASSERT(open_result == RT_EOK);
 
   uf->uart_device->user_data = uf;
-  rt_device_set_rx_indicate(uf->uart_device, rx_ind);
+  if (uf->cfg.rx_ind)
+  {
+    rt_device_set_rx_indicate(uf->uart_device, uf->cfg.rx_ind);
+  }
+  else
+  {
+    rt_device_set_rx_indicate(uf->uart_device, rx_ind);
+  }
 
   return uf;
 }

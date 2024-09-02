@@ -12,6 +12,7 @@ struct uart_framework_cfg
   rt_size_t max_frame_size;
   rt_uint32_t frame_interval_ms;
   rt_uint32_t send_interval_ms;
+  rt_err_t (*rx_ind)(rt_device_t dev, rt_size_t size);
   void (*rs485_txd)(void);
   void (*rs485_rxd)(void);
 };
