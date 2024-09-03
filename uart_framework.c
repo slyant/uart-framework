@@ -9,17 +9,14 @@
 
 enum work_model
 {
-  WORK_NORMAL = 0,
-  WORK_TAKE,
-  WORK_RELEASE,
-  WORK_TAKE_RELEASE
+    WORK_NORMAL = 0, WORK_TAKE, WORK_RELEASE, WORK_TAKE_RELEASE
 };
 
 static rt_err_t rx_ind(rt_device_t dev, rt_size_t size)
 {
-  uart_framework_t uf = (uart_framework_t)dev->user_data;
-  rt_sem_release(uf->rx_sem);
-  return RT_EOK;
+    uart_framework_t uf = dev->user_data;
+    rt_sem_release(uf->rx_sem);
+    return RT_EOK;
 }
 
 /**
@@ -33,74 +30,77 @@ static rt_err_t rx_ind(rt_device_t dev, rt_size_t size)
  */
 uart_framework_t uart_framework_create(struct uart_framework_cfg *cfg)
 {
-  rt_err_t open_result;
-  static int rx_sem_count = 0;
-  static int rx_mut_count = 0;
-  char ufsem_name[RT_NAME_MAX] = {0};
-  char ufmut_name[RT_NAME_MAX] = {0};
-  uart_framework_t uf = rt_calloc(1, sizeof(struct uart_framework));
-  if (uf == RT_NULL)
-    return RT_NULL;
-  uf->uart_device = rt_device_find(cfg->uart_name);
-  if (uf->uart_device == RT_NULL || uf->uart_device->type != RT_Device_Class_Char)
-  {
-    rt_free(uf);
-    return RT_NULL;
-  }
-  rt_snprintf(ufsem_name, RT_NAME_MAX, "ufsem%d", rx_sem_count++);
-  uf->rx_sem = rt_sem_create(ufsem_name, 0, RT_IPC_FLAG_FIFO);
-  if (uf->rx_sem == RT_NULL)
-  {
-    rt_free(uf);
-    return RT_NULL;
-  }
-  rt_snprintf(ufmut_name, RT_NAME_MAX, "ufmut%d", rx_mut_count++);
-  uf->dev_lock = rt_mutex_create(ufmut_name, RT_IPC_FLAG_FIFO);
-  if (uf->dev_lock == RT_NULL)
-  {
-    rt_sem_delete(uf->rx_sem);
-    rt_free(uf);
-    return RT_NULL;
-  }
-  uf->rx_buf = rt_calloc(1, cfg->max_frame_size);
-  if (uf->rx_buf == RT_NULL)
-  {
-    rt_sem_delete(uf->rx_sem);
-    rt_mutex_delete(uf->dev_lock);
-    rt_free(uf);
-    return RT_NULL;
-  }
-  rt_memcpy(&uf->cfg, cfg, sizeof(struct uart_framework_cfg));
+    rt_err_t open_result;
+    static int rx_sem_count = 0;
+    static int rx_mut_count = 0;
+    char ufsem_name[RT_NAME_MAX] = { 0 };
+    char ufmut_name[RT_NAME_MAX] = { 0 };
+    uart_framework_t uf = rt_calloc(1, sizeof(struct uart_framework));
+    if (uf == RT_NULL)
+        return RT_NULL;
+    uf->uart_device = rt_device_find(cfg->uart_name);
+    if (uf->uart_device == RT_NULL || uf->uart_device->type != RT_Device_Class_Char)
+    {
+        rt_free(uf);
+        return RT_NULL;
+    }
+    rt_snprintf(ufsem_name, RT_NAME_MAX, "ufsem%d", rx_sem_count++);
+    uf->rx_sem = rt_sem_create(ufsem_name, 0, RT_IPC_FLAG_FIFO);
+    if (uf->rx_sem == RT_NULL)
+    {
+        rt_free(uf);
+        return RT_NULL;
+    }
+    rt_snprintf(ufmut_name, RT_NAME_MAX, "ufmut%d", rx_mut_count++);
+    uf->dev_lock = rt_mutex_create(ufmut_name, RT_IPC_FLAG_FIFO);
+    if (uf->dev_lock == RT_NULL)
+    {
+        rt_sem_delete(uf->rx_sem);
+        rt_free(uf);
+        return RT_NULL;
+    }
+    uf->rx_buf = rt_calloc(1, cfg->max_frame_size);
+    if (uf->rx_buf == RT_NULL)
+    {
+        rt_sem_delete(uf->rx_sem);
+        rt_mutex_delete(uf->dev_lock);
+        rt_free(uf);
+        return RT_NULL;
+    }
+    rt_memcpy(&uf->cfg, cfg, sizeof(struct uart_framework_cfg));
 
 #ifdef RT_USING_SERIAL_V2
-  open_result = rt_device_open(uf->uart_device, RT_DEVICE_FLAG_RX_NON_BLOCKING | RT_DEVICE_FLAG_TX_BLOCKING);
+    open_result = rt_device_open(uf->uart_device, RT_DEVICE_FLAG_RX_NON_BLOCKING | RT_DEVICE_FLAG_TX_BLOCKING);
 #else
 #ifdef RT_SERIAL_USING_DMA
-  /* using DMA mode first */
-  open_result = rt_device_open(uf->uart_device, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_DMA_RX);
-  /* using interrupt mode when DMA mode not supported */
-  if (open_result == RT_EOK)
-  {
-  }
-  else if (open_result == -RT_EIO)
+    /* using DMA mode first */
+    open_result = rt_device_open(uf->uart_device, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_DMA_RX);
+    /* using interrupt mode when DMA mode not supported */
+    if (open_result == RT_EOK)
+    {
+    }
+    else if (open_result == -RT_EIO)
 #endif
-  {
-    open_result = rt_device_open(uf->uart_device, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_INT_RX);
-  }
+    {
+        open_result = rt_device_open(uf->uart_device, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_INT_RX);
+    }
 #endif
-  RT_ASSERT(open_result == RT_EOK);
+    RT_ASSERT(open_result == RT_EOK);
 
-  uf->uart_device->user_data = uf;
-  if (uf->cfg.rx_ind)
-  {
-    rt_device_set_rx_indicate(uf->uart_device, uf->cfg.rx_ind);
-  }
-  else
-  {
-    rt_device_set_rx_indicate(uf->uart_device, rx_ind);
-  }
+    if (uf->cfg.rx_ind)
+    {
+        rt_device_set_rx_indicate(uf->uart_device, uf->cfg.rx_ind);
+    }
+    else
+    {
+        if (uf->uart_device->user_data == RT_NULL)
+        {
+            uf->uart_device->user_data = uf;
+            rt_device_set_rx_indicate(uf->uart_device, rx_ind);
+        }
+    }
 
-  return uf;
+    return uf;
 }
 
 /**
@@ -117,28 +117,28 @@ uart_framework_t uart_framework_create(struct uart_framework_cfg *cfg)
  */
 static rt_size_t _send(enum work_model model, uart_framework_t uf, rt_uint8_t *data, rt_size_t size)
 {
-  while (rt_tick_get() - uf->send_tick < rt_tick_from_millisecond(uf->cfg.send_interval_ms))
-  {
-    rt_thread_mdelay(10);
-  }
-  if (model == WORK_TAKE || model == WORK_TAKE_RELEASE)
-  {
-    rt_mutex_take(uf->dev_lock, RT_WAITING_FOREVER);
-    rt_sem_control(uf->rx_sem, RT_IPC_CMD_RESET, 0);
-    while (rt_device_read(uf->uart_device, 0, &uf->rx_ch, 1))
-      ;
-  }
-  if (uf->cfg.rs485_txd)
-    uf->cfg.rs485_txd();
-  rt_size_t wsize = rt_device_write(uf->uart_device, 0, data, size);
-  if (uf->cfg.rs485_rxd)
-    uf->cfg.rs485_rxd();
-  uf->send_tick = rt_tick_get(); // 重置定时器
-  if (model == WORK_TAKE_RELEASE)
-  {
-    rt_mutex_release(uf->dev_lock);
-  }
-  return wsize;
+    while (rt_tick_get() - uf->send_tick < rt_tick_from_millisecond(uf->cfg.send_interval_ms))
+    {
+        rt_thread_mdelay(10);
+    }
+    if (model == WORK_TAKE || model == WORK_TAKE_RELEASE)
+    {
+        rt_mutex_take(uf->dev_lock, RT_WAITING_FOREVER);
+        rt_sem_control(uf->rx_sem, RT_IPC_CMD_RESET, 0);
+        while (rt_device_read(uf->uart_device, 0, &uf->rx_ch, 1))
+            ;
+    }
+    if (uf->cfg.rs485_txd)
+        uf->cfg.rs485_txd();
+    rt_size_t wsize = rt_device_write(uf->uart_device, 0, data, size);
+    if (uf->cfg.rs485_rxd)
+        uf->cfg.rs485_rxd();
+    uf->send_tick = rt_tick_get(); // 重置定时器
+    if (model == WORK_TAKE_RELEASE)
+    {
+        rt_mutex_release(uf->dev_lock);
+    }
+    return wsize;
 }
 
 /**
@@ -156,76 +156,76 @@ static rt_size_t _send(enum work_model model, uart_framework_t uf, rt_uint8_t *d
  * @return 错误码，RT_EOK 表示成功，其他值表示错误
  */
 static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t timeout_ms,
-                         rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
 {
-  //    rt_memset(uf->rx_buf, 0, uf->cfg.max_frame_size);
-  uf->rx_size = 0;
-  uf->last_tick = rt_tick_get();
-  while (1)
-  {
-    if (rt_sem_take(uf->rx_sem, rt_tick_from_millisecond(timeout_ms)) == RT_EOK)
+    //    rt_memset(uf->rx_buf, 0, uf->cfg.max_frame_size);
+    uf->rx_size = 0;
+    uf->last_tick = rt_tick_get();
+    while (1)
     {
-      if (model == WORK_TAKE_RELEASE)
-      {
-        rt_mutex_take(uf->dev_lock, RT_WAITING_FOREVER);
-      }
-      while (1)
-      {
-        while (rt_device_read(uf->uart_device, 0, &uf->rx_ch, 1))
+        if (rt_sem_take(uf->rx_sem, rt_tick_from_millisecond(timeout_ms)) == RT_EOK)
         {
-          uf->last_tick = rt_tick_get(); // 重置定时器
-          if (uf->rx_size < uf->cfg.max_frame_size)
-          {
-            uf->rx_buf[uf->rx_size++] = uf->rx_ch;
-          }
+            if (model == WORK_TAKE_RELEASE)
+            {
+                rt_mutex_take(uf->dev_lock, RT_WAITING_FOREVER);
+            }
+            while (1)
+            {
+                while (rt_device_read(uf->uart_device, 0, &uf->rx_ch, 1))
+                {
+                    uf->last_tick = rt_tick_get(); // 重置定时器
+                    if (uf->rx_size < uf->cfg.max_frame_size)
+                    {
+                        uf->rx_buf[uf->rx_size++] = uf->rx_ch;
+                    }
+                }
+                if (rt_tick_get() - uf->last_tick > rt_tick_from_millisecond(uf->cfg.frame_interval_ms))
+                {
+                    if (uf->rx_size > 0)
+                    {
+                        if (out && out_max_size > 0)
+                        {
+                            rt_memcpy(out, uf->rx_buf, uf->rx_size > out_max_size ? out_max_size : uf->rx_size);
+                        }
+                        if (frame_handler)
+                        {
+                            rt_err_t err = frame_handler(uf->rx_buf, uf->rx_size);
+                            if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
+                            {
+                                rt_mutex_release(uf->dev_lock);
+                            }
+                            return err;
+                        }
+                        else
+                        {
+                            if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
+                            {
+                                rt_mutex_release(uf->dev_lock);
+                            }
+                            return RT_EOK;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                rt_thread_mdelay(10);
+            }
+            if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
+            {
+                rt_mutex_release(uf->dev_lock);
+            }
         }
-        if (rt_tick_get() - uf->last_tick > rt_tick_from_millisecond(uf->cfg.frame_interval_ms))
+        else
         {
-          if (uf->rx_size > 0)
-          {
-            if (out && out_max_size > 0)
+            if (model == WORK_RELEASE)
             {
-              rt_memcpy(out, uf->rx_buf, uf->rx_size > out_max_size ? out_max_size : uf->rx_size);
-            }
-            if (frame_handler)
-            {
-              rt_err_t err = frame_handler(uf->rx_buf, uf->rx_size);
-              if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
-              {
                 rt_mutex_release(uf->dev_lock);
-              }
-              return err;
             }
-            else
-            {
-              if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
-              {
-                rt_mutex_release(uf->dev_lock);
-              }
-              return RT_EOK;
-            }
-          }
-          else
-          {
-            break;
-          }
+            return -RT_ETIMEOUT;
         }
-        rt_thread_mdelay(10);
-      }
-      if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
-      {
-        rt_mutex_release(uf->dev_lock);
-      }
     }
-    else
-    {
-      if (model == WORK_RELEASE)
-      {
-        rt_mutex_release(uf->dev_lock);
-      }
-      return -RT_ETIMEOUT;
-    }
-  }
 }
 
 /**
@@ -241,7 +241,7 @@ static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t
  */
 rt_size_t uart_framework_send(uart_framework_t uf, rt_uint8_t *data, rt_size_t size)
 {
-  return _send(WORK_NORMAL, uf, data, size);
+    return _send(WORK_NORMAL, uf, data, size);
 }
 /**
  * @brief UART框架发送数据（独占）
@@ -256,7 +256,7 @@ rt_size_t uart_framework_send(uart_framework_t uf, rt_uint8_t *data, rt_size_t s
  */
 rt_size_t uart_framework_send_take(uart_framework_t uf, rt_uint8_t *data, rt_size_t size)
 {
-  return _send(WORK_TAKE, uf, data, size);
+    return _send(WORK_TAKE, uf, data, size);
 }
 /**
  * @brief UART框架发送数据（独占发送后释放）
@@ -271,7 +271,7 @@ rt_size_t uart_framework_send_take(uart_framework_t uf, rt_uint8_t *data, rt_siz
  */
 rt_size_t uart_framework_send_take_release(uart_framework_t uf, rt_uint8_t *data, rt_size_t size)
 {
-  return _send(WORK_TAKE_RELEASE, uf, data, size);
+    return _send(WORK_TAKE_RELEASE, uf, data, size);
 }
 
 /**
@@ -288,9 +288,9 @@ rt_size_t uart_framework_send_take_release(uart_framework_t uf, rt_uint8_t *data
  * @return 返回错误码，表示操作是否成功
  */
 rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms,
-                                rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
 {
-  return _receive(WORK_NORMAL, uf, timeout_ms, frame_handler, out, out_max_size);
+    return _receive(WORK_NORMAL, uf, timeout_ms, frame_handler, out, out_max_size);
 }
 
 /**
@@ -307,9 +307,9 @@ rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms,
  * @return 返回错误码，表示操作结果
  */
 rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout_ms,
-                                        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
 {
-  return _receive(WORK_RELEASE, uf, timeout_ms, frame_handler, out, out_max_size);
+    return _receive(WORK_RELEASE, uf, timeout_ms, frame_handler, out, out_max_size);
 }
 
 /**
@@ -326,7 +326,7 @@ rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout
  * @return 返回错误码，表示操作是否成功
  */
 rt_err_t uart_framework_receive_take_release(uart_framework_t uf, rt_uint32_t timeout_ms,
-                                             rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
 {
-  return _receive(WORK_TAKE_RELEASE, uf, timeout_ms, frame_handler, out, out_max_size);
+    return _receive(WORK_TAKE_RELEASE, uf, timeout_ms, frame_handler, out, out_max_size);
 }
