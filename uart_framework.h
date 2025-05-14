@@ -28,6 +28,7 @@ struct uart_framework
     rt_tick_t last_tick;
     rt_tick_t cur_tick;
     rt_tick_t send_tick;
+    rt_bool_t is_waiting_response;
     struct uart_framework_cfg cfg;
 };
 typedef struct uart_framework *uart_framework_t;
@@ -36,11 +37,12 @@ uart_framework_t uart_framework_create(struct uart_framework_cfg *cfg);
 rt_size_t uart_framework_send(uart_framework_t uf, rt_uint8_t *data, rt_size_t size);
 rt_size_t uart_framework_send_take(uart_framework_t uf, rt_uint8_t *data, rt_size_t size);
 rt_size_t uart_framework_send_take_release(uart_framework_t uf, rt_uint8_t *data, rt_size_t size);
-rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms,
-        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size);
-rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout_ms,
-        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size);
-rt_err_t uart_framework_receive_take_release(uart_framework_t uf, rt_uint32_t timeout_ms,
-        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size);
+rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out, rt_size_t out_max_size);
+rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
+        rt_size_t out_max_size);
+rt_err_t uart_framework_receive_take_release(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
+        rt_size_t out_max_size);
+rt_err_t uart_framework_receive_without_waiting_response(uart_framework_t uf,
+        void (*frame_handler_callback)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t *out_size, rt_size_t out_max_size);
 
 #endif /* _UART_FRAMEWORK_H_ */

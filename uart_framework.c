@@ -99,6 +99,7 @@ uart_framework_t uart_framework_create(struct uart_framework_cfg *cfg)
             rt_device_set_rx_indicate(uf->uart_device, rx_ind);
         }
     }
+    uf->is_waiting_response = RT_FALSE;
 
     return uf;
 }
@@ -106,7 +107,7 @@ uart_framework_t uart_framework_create(struct uart_framework_cfg *cfg)
 /**
  * @brief 发送数据
  *
- * 根据给定的工作模式和 UART 框架，发送数据到 UART 设备。
+ * 根据给定的工作模式和 UART 框架，发送数据到 UART 设备，并进入等待响应状态。
  *
  * @param model 工作模式
  * @param uf UART 框架结构体指针
@@ -138,13 +139,14 @@ static rt_size_t _send(enum work_model model, uart_framework_t uf, rt_uint8_t *d
     {
         rt_mutex_release(uf->dev_lock);
     }
+    uf->is_waiting_response = RT_TRUE;
     return wsize;
 }
 
 /**
  * @brief 接收串口数据
  *
- * 根据指定的工作模型，从串口框架中接收数据，并处理接收到的数据帧。
+ * 根据指定的工作模型，从串口框架中接收数据后，退出等待响应状态。
  *
  * @param model 工作模型
  * @param uf 串口框架对象
@@ -155,8 +157,8 @@ static rt_size_t _send(enum work_model model, uart_framework_t uf, rt_uint8_t *d
  *
  * @return 错误码，RT_EOK 表示成功，其他值表示错误
  */
-static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t timeout_ms,
-        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
+        rt_size_t out_max_size)
 {
     //    rt_memset(uf->rx_buf, 0, uf->cfg.max_frame_size);
     uf->rx_size = 0;
@@ -187,23 +189,12 @@ static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t
                         {
                             rt_memcpy(out, uf->rx_buf, uf->rx_size > out_max_size ? out_max_size : uf->rx_size);
                         }
-                        if (frame_handler)
+                        if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
                         {
-                            rt_err_t err = frame_handler(uf->rx_buf, uf->rx_size);
-                            if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
-                            {
-                                rt_mutex_release(uf->dev_lock);
-                            }
-                            return err;
+                            rt_mutex_release(uf->dev_lock);
                         }
-                        else
-                        {
-                            if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
-                            {
-                                rt_mutex_release(uf->dev_lock);
-                            }
-                            return RT_EOK;
-                        }
+                        uf->is_waiting_response = RT_FALSE;
+                        return RT_EOK;
                     }
                     else
                     {
@@ -223,6 +214,7 @@ static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t
             {
                 rt_mutex_release(uf->dev_lock);
             }
+            uf->is_waiting_response = RT_FALSE;
             return -RT_ETIMEOUT;
         }
     }
@@ -287,10 +279,9 @@ rt_size_t uart_framework_send_take_release(uart_framework_t uf, rt_uint8_t *data
  *
  * @return 返回错误码，表示操作是否成功
  */
-rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms,
-        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out, rt_size_t out_max_size)
 {
-    return _receive(WORK_NORMAL, uf, timeout_ms, frame_handler, out, out_max_size);
+    return _receive(WORK_NORMAL, uf, timeout_ms, out, out_max_size);
 }
 
 /**
@@ -306,10 +297,10 @@ rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms,
  *
  * @return 返回错误码，表示操作结果
  */
-rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout_ms,
-        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
+        rt_size_t out_max_size)
 {
-    return _receive(WORK_RELEASE, uf, timeout_ms, frame_handler, out, out_max_size);
+    return _receive(WORK_RELEASE, uf, timeout_ms, out, out_max_size);
 }
 
 /**
@@ -321,12 +312,79 @@ rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout
  * @param timeout_ms 超时时间（单位：毫秒）
  * @param frame_handler 帧处理函数指针
  * @param out 输出缓冲区指针
- * @param out_max_size 输出缓冲区最大大小
+ * @param out_max_size 输出缓冲区最大长度
  *
  * @return 返回错误码，表示操作是否成功
  */
-rt_err_t uart_framework_receive_take_release(uart_framework_t uf, rt_uint32_t timeout_ms,
-        rt_err_t (*frame_handler)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t out_max_size)
+rt_err_t uart_framework_receive_take_release(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
+        rt_size_t out_max_size)
 {
-    return _receive(WORK_TAKE_RELEASE, uf, timeout_ms, frame_handler, out, out_max_size);
+    return _receive(WORK_TAKE_RELEASE, uf, timeout_ms, out, out_max_size);
+}
+
+/**
+ * @brief 在非等待响应状态，接收串口数据
+ *
+ * 在非等待响应状态，从串口框架中接收数据，并在用户回调函数中处理接收到的数据帧。
+ *
+ * @param uf 串口框架对象
+ * @param frame_handler_callback 数据帧处理回调函数
+ * @param out 输出接收的数据
+ * @param out_size 输出接收的数据长度
+ * @param out_max_size 输出缓冲区最大长度
+ *
+ * @return 返回错误码，表示操作是否成功
+ */
+rt_err_t uart_framework_receive_without_waiting_response(uart_framework_t uf,
+        void (*frame_handler_callback)(rt_uint8_t *data, rt_size_t size), rt_uint8_t *out, rt_size_t *out_size,
+        rt_size_t out_max_size)
+{
+    if (uf->is_waiting_response == RT_FALSE)
+    {
+        if (rt_sem_trytake(uf->rx_sem) == RT_EOK)
+        {
+            rt_mutex_take(uf->dev_lock, RT_WAITING_FOREVER);
+            uf->rx_size = 0;
+            uf->last_tick = rt_tick_get();
+            while (1)
+            {
+                while (rt_device_read(uf->uart_device, 0, &uf->rx_ch, 1))
+                {
+                    uf->last_tick = rt_tick_get(); // 重置定时器
+                    if (uf->rx_size < uf->cfg.max_frame_size)
+                    {
+                        uf->rx_buf[uf->rx_size++] = uf->rx_ch;
+                    }
+                }
+                if (rt_tick_get() - uf->last_tick > rt_tick_from_millisecond(uf->cfg.frame_interval_ms))
+                {
+                    if (uf->rx_size > 0)
+                    {
+                        if (out)
+                        {
+                            rt_memcpy(out, uf->rx_buf, uf->rx_size > out_max_size ? out_max_size : uf->rx_size);
+                        }
+                        if(out_size)
+                        {
+                            *out_size = uf->rx_size;
+                        }
+                        if (frame_handler_callback)
+                        {
+                            frame_handler_callback(uf->rx_buf, uf->rx_size);
+                        }
+                        rt_mutex_release(uf->dev_lock);
+                        return RT_EOK;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                rt_thread_mdelay(10);
+            }
+            rt_mutex_release(uf->dev_lock);
+        }
+    }
+
+    return -RT_ERROR;
 }
