@@ -152,13 +152,14 @@ static rt_size_t _send(enum work_model model, uart_framework_t uf, rt_uint8_t *d
  * @param uf 串口框架对象
  * @param timeout_ms 超时时间（毫秒）
  * @param frame_handler 数据帧处理函数
- * @param out 输出缓冲区
- * @param out_max_size 输出缓冲区最大大小
+ * @param out 存储处理结果的缓冲区
+ * @param out_size 处理结果的实际长度
+ * @param out_max_size 缓冲区最大容量
  *
  * @return 错误码，RT_EOK 表示成功，其他值表示错误
  */
 static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
-        rt_size_t out_max_size)
+        rt_size_t *out_size, rt_size_t out_max_size)
 {
     //    rt_memset(uf->rx_buf, 0, uf->cfg.max_frame_size);
     uf->rx_size = 0;
@@ -185,9 +186,13 @@ static rt_err_t _receive(enum work_model model, uart_framework_t uf, rt_uint32_t
                 {
                     if (uf->rx_size > 0)
                     {
-                        if (out && out_max_size > 0)
+                        if (out)
                         {
                             rt_memcpy(out, uf->rx_buf, uf->rx_size > out_max_size ? out_max_size : uf->rx_size);
+                        }
+                        if (out_size)
+                        {
+                            *out_size = uf->rx_size;
                         }
                         if (model == WORK_RELEASE || model == WORK_TAKE_RELEASE)
                         {
@@ -273,15 +278,16 @@ rt_size_t uart_framework_send_take_release(uart_framework_t uf, rt_uint8_t *data
  *
  * @param uf UART框架对象
  * @param timeout_ms 超时时间（毫秒）
- * @param frame_handler 帧处理器函数指针，用于处理接收到的数据
  * @param out 存储处理结果的缓冲区
+ * @param out_size 处理结果的实际长度
  * @param out_max_size 缓冲区最大容量
  *
  * @return 返回错误码，表示操作是否成功
  */
-rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out, rt_size_t out_max_size)
+rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out, rt_size_t *out_size,
+        rt_size_t out_max_size)
 {
-    return _receive(WORK_NORMAL, uf, timeout_ms, out, out_max_size);
+    return _receive(WORK_NORMAL, uf, timeout_ms, out, out_size, out_max_size);
 }
 
 /**
@@ -289,18 +295,18 @@ rt_err_t uart_framework_receive(uart_framework_t uf, rt_uint32_t timeout_ms, rt_
  *
  * 从 UART 框架收数据，通过回调函数处理接收到的数据帧。
  *
- * @param uf UART 框架对象
+ * @param uf UART框架对象
  * @param timeout_ms 超时时间（毫秒）
- * @param frame_handler 数据帧处理回调函数
  * @param out 存储处理结果的缓冲区
- * @param out_max_size 缓冲区最大大小
+ * @param out_size 处理结果的实际长度
+ * @param out_max_size 缓冲区最大容量
  *
- * @return 返回错误码，表示操作结果
+ * @return 返回错误码，表示操作是否成功
  */
 rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
-        rt_size_t out_max_size)
+        rt_size_t *out_size, rt_size_t out_max_size)
 {
-    return _receive(WORK_RELEASE, uf, timeout_ms, out, out_max_size);
+    return _receive(WORK_RELEASE, uf, timeout_ms, out, out_size, out_max_size);
 }
 
 /**
@@ -308,18 +314,18 @@ rt_err_t uart_framework_receive_release(uart_framework_t uf, rt_uint32_t timeout
  *
  * 从UART框架中接收数据，并在处理完成后释放相关资源。
  *
- * @param uf UART框架指针
- * @param timeout_ms 超时时间（单位：毫秒）
- * @param frame_handler 帧处理函数指针
- * @param out 输出缓冲区指针
- * @param out_max_size 输出缓冲区最大长度
+ * @param uf UART框架对象
+ * @param timeout_ms 超时时间（毫秒）
+ * @param out 存储处理结果的缓冲区
+ * @param out_size 处理结果的实际长度
+ * @param out_max_size 缓冲区最大容量
  *
  * @return 返回错误码，表示操作是否成功
  */
 rt_err_t uart_framework_receive_take_release(uart_framework_t uf, rt_uint32_t timeout_ms, rt_uint8_t *out,
-        rt_size_t out_max_size)
+        rt_size_t *out_size, rt_size_t out_max_size)
 {
-    return _receive(WORK_TAKE_RELEASE, uf, timeout_ms, out, out_max_size);
+    return _receive(WORK_TAKE_RELEASE, uf, timeout_ms, out, out_size, out_max_size);
 }
 
 /**
@@ -329,9 +335,9 @@ rt_err_t uart_framework_receive_take_release(uart_framework_t uf, rt_uint32_t ti
  *
  * @param uf 串口框架对象
  * @param frame_handler_callback 数据帧处理回调函数
- * @param out 输出接收的数据
- * @param out_size 输出接收的数据长度
- * @param out_max_size 输出缓冲区最大长度
+ * @param out 存储处理结果的缓冲区
+ * @param out_size 处理结果的实际长度
+ * @param out_max_size 缓冲区最大容量
  *
  * @return 返回错误码，表示操作是否成功
  */
@@ -364,7 +370,7 @@ rt_err_t uart_framework_receive_without_waiting_response(uart_framework_t uf,
                         {
                             rt_memcpy(out, uf->rx_buf, uf->rx_size > out_max_size ? out_max_size : uf->rx_size);
                         }
-                        if(out_size)
+                        if (out_size)
                         {
                             *out_size = uf->rx_size;
                         }
