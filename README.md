@@ -236,7 +236,10 @@ static void rs485_rx_handler(void *params)
 {
     while (1)
     {
-        uart_framework_receive(uf, RT_WAITING_FOREVER, frame_handler, RT_NULL, 0);
+        if(uart_framework_receive(uf, RT_WAITING_FOREVER, RT_NULL, RT_NULL, 0) == RT_EOK)
+        {
+            frame_handler(uf->rx_buf, uf->rx_size);
+        }
     }
 }
 
